@@ -1,1 +1,1 @@
-print ("qq")
+print("Hello, World!")
