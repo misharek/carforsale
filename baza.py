@@ -8,4 +8,14 @@ def handle_start(message):
     bot.send_message(message.chat.id, "владзьо проверка")
 
 
-bot.polling(none_stop=True)
+@bot.message_handler(commands=["help"])
+def handle_start(message):
+    bot.send_message(message.chat.id, "help information")
+
+
+@bot.message_handler(commands=["aboutus"])
+def handle_start(message):
+    bot.send_message(message.chat.id, "about us")
+
+
+bot.infinity_polling()
