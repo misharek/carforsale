@@ -11,11 +11,17 @@ def main(message):
     )
 
 
+help_text = (
+    "CarForSaleBot — це ваш особистий інструмент для швидкої та зручної купівлі та продажу автомобілів у Telegram.\n\n"
+    "**Що ви можете робити з CarForSaleBot:**\n\n"
+    "/sale - Легко продати своє авто: Розмістіть оголошення за кілька хвилин, додайте фото та детальний опис.\n\n"
+    "/buy - Знайти авто мрії: Переглядайте тисячі оголошень, фільтруйте за маркою, моделлю, ціною та іншими параметрами."
+)
+
+
 @bot.message_handler(commands=["help"])
 def main(message):
-    bot.send_message(
-        message.chat.id, "<b>help</b> <em><u> information</u></em>", parse_mode="html"
-    )
+    bot.send_message(message.chat.id, text=help_text, parse_mode="Markdown")
 
 
 @bot.message_handler(commands=["aboutus"])
