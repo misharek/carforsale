@@ -78,6 +78,7 @@ async def handle_buy(message: types.Message):
     await message.answer("🛠️ Команда /buy: Реалізація пошуку та фільтрації буде тут.")
 
 
+@dp.message()
 async def handle_unknown_commands(message: types.Message):
     error_message = "❌ **Невірна команда.** Будь ласка, використайте команду: /help."
     await message.answer(text=error_message)

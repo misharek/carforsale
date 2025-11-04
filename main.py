@@ -1,5 +1,5 @@
 import telebot
-from keyboard import get_main_keyboard
+get_main_keyboardfrom keyboard import 
 
 bot = telebot.TeleBot("8117385329:AAFwTXqVa8Y6VTfoZs64wgwxIiG6xhowfF8")
 
