@@ -61,7 +61,7 @@ async def handle_help(message: types.Message):
     await message.answer(text=HELP_TEXT)
 
 
-@dp.message(Command("aboutus"))
+@dp.message(Command("about us"))
 async def handle_aboutus(message: types.Message):
     await message.answer(
         text=ABOUT_US_TEXT, parse_mode=ParseMode.MARKDOWN
