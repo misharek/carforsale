@@ -61,11 +61,9 @@ async def handle_help(message: types.Message):
     await message.answer(text=HELP_TEXT)
 
 
-@dp.message(Command("about us"))
+@dp.message(Command("aboutus"))
 async def handle_aboutus(message: types.Message):
-    await message.answer(
-        text=ABOUT_US_TEXT, parse_mode=ParseMode.MARKDOWN
-    )  # ParseMode додано для тексту з Markdown
+    await message.answer(text=ABOUT_US_TEXT, parse_mode=ParseMode.MARKDOWN)  
 
 
 @dp.message(Command("sell"))
@@ -78,7 +76,6 @@ async def handle_buy(message: types.Message):
     await message.answer("🛠️ Команда /buy: Реалізація пошуку та фільтрації буде тут.")
 
 
-@dp.message()
 async def handle_unknown_commands(message: types.Message):
     error_message = "❌ **Невірна команда.** Будь ласка, використайте команду: /help."
     await message.answer(text=error_message)
