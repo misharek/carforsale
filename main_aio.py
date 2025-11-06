@@ -6,6 +6,8 @@ from aiogram.filters import Command
 from config import BOT_TOKEN, DEFAULT_BOT_PROPERTIES
 
 
+
+
 from handlers.common import common_router, handle_unknown_commands
 from handlers.sell.sell_router import sell_router
 from handlers.buy.buy_router import buy_router
@@ -22,6 +24,7 @@ async def main():
     dp.include_router(sell_router)
     dp.include_router(buy_router)
 
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 

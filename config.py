@@ -1,7 +1,14 @@
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-BOT_TOKEN = "8117385329:AAFwTXqVa8Y6VTfoZs64wgwxIiG6xhowfF8"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+
+DEFAULT_BOT_PROPERTIES = {"parse_mode": ParseMode.HTML}
 
 DEFAULT_BOT_PROPERTIES = DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
 
