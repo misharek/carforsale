@@ -7,6 +7,8 @@ from aiogram.types import Message
 
 from config import HELP_TEXT, ABOUT_US_TEXT
 
+ dp = Dispatcher()
+
 common_router = Router()
 
 
@@ -40,7 +42,3 @@ async def handle_aboutus(message: types.Message):
 async def handle_unknown_commands(message: types.Message):
     error_message = "❌ **Невірна команда.** Будь ласка, використайте команду: /help."
     await message.answer(text=error_message)
-
-@common_router.message()
-async def echo (message: Message) :
-    await message.answer (f. "Введіть команду через /")
