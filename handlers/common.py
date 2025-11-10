@@ -7,6 +7,8 @@ from aiogram.types import Message
 
 from config import HELP_TEXT, ABOUT_US_TEXT
 
+ф
+
 common_router = Router()
 
 
