@@ -29,18 +29,11 @@ async def get_or_create_user(telegram_id: int, full_name: str, username: str = N
 
 
 async def set_user_role_seller(telegram_id: int):
-    """
-    Знаходить користувача за telegram_id та оновлює його роль на 'seller'.
-    Це викликається, коли користувач натискає "Продати авто".
-    """
 
-    # Фільтр: який документ оновити
     filter_query = {"telegram_id": telegram_id}
 
-    # Дані для оновлення: встановити нове значення для поля 'role'
     update_data = {"$set": {"role": "seller"}}
 
-    # "await" - чекаємо, поки база оновить ОДИН документ
     result = await users_collection.update_one(filter_query, update_data)
 
     if result.modified_count > 0:
