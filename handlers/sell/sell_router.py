@@ -56,12 +56,12 @@ async def handle_sell_car(callback: CallbackQuery):
     try:
         user_data = callback.from_user
 
-        # 1. Спробуємо отримати або створити користувача
+       
         user = await user_manager.get_or_create_user(
             telegram_id=user_data.id,
-            full_name=user_data.full_name,
-            username=user_data.username,
-        )
+            full_name=user_data.first_name, 
+            username=user_data.username
+)
 
         # 2. Перевірка ролі
         if user["role"] == "buyer":

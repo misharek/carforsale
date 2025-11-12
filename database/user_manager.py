@@ -3,45 +3,28 @@ from datetime import datetime
 
 
 async def get_user_by_id(telegram_id: int):
-    """
-    Знаходить користувача за telegram_id, але НЕ створює його.
-    Повертає документ користувача або None, якщо не знайдено.
-    """
     return await users_collection.find_one({"telegram_id": telegram_id})
 
 
 async def get_or_create_user(telegram_id: int, full_name: str, username: str = None):
-    """
-    Це головна функція для реєстрації.
-
-    1. Шукає користувача за telegram_id.
-    2. Якщо знаходить - повертає дані.
-    3. Якщо НЕ знаходить - створює нового з роллю 'buyer' і повертає його.
-    """
-
-    # Використовуємо попередню функцію для пошуку
     user = await get_user_by_id(telegram_id)
 
     if user:
-        # 4. Якщо користувач знайдений, повертаємо його
         return user
     else:
-        # 5. Якщо ні - створюємо нового, базуючись на вашій схемі
         new_user = {
             "telegram_id": telegram_id,
-            "role": "buyer",  # Початкова роль за замовчуванням
-            "username": f"@{username}" if username else None,  # Зберігаємо з @
+            "role": "buyer",
+            "username": f"@{username}" if username else None,
             "full_name": full_name,
-            "phone_number": None,  # Телефон додається пізніше, опціонально
+            "phone_number": None,
             "registration_date": datetime.utcnow(),
         }
 
-        # 6. Вставляємо нового користувача в колекцію
         await users_collection.insert_one(new_user)
 
         print(f"🆕 Зареєстровано нового користувача: {full_name} ({telegram_id})")
 
-        # Повертаємо щойно створений документ
         return new_user
 
 

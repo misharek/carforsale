@@ -4,7 +4,6 @@ from aiogram import Bot, Dispatcher
 
 from config import BOT_TOKEN, DEFAULT_BOT_PROPERTIES
 
-# Імпортуємо роутери з папки 'handlers'
 from handlers.common import common_router
 from handlers.sell.sell_router import sell_router
 from handlers.buy.buy_router import buy_router
