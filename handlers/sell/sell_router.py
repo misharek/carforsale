@@ -4,33 +4,20 @@ import logging
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
-# Імпортуємо наш менеджер користувачів
-from database import user_manager # <--- Він вже тут, це чудово
+from database import user_manager
 
-# Імпорти для команди, повідомлення та клавіатури
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-# 1. Створюємо об'єкт роутера
 sell_router = Router()
 
 
-# -------------------------------------------------------------------
-# ОБРОБНИК №1: ДЛЯ КОМАНДИ /sell (ОНОВЛЕНА ВЕРСІЯ)
-# -------------------------------------------------------------------
 @sell_router.message(Command("sell"))
 async def handle_sell_command(message: Message):
-    """
-    Обробник команди /sell.
-    Тепер він ПЕРЕВІРЯЄ, чи зареєстрований користувач, 
-    і показує різний текст/кнопки.
-    """
-    
-    # 1. Перевіряємо, чи є користувач в базі (БЕЗ створення)
+
     user = await user_manager.get_user_by_id(message.from_user.id)
-    
+
     if user is None:
-        # 2. Якщо користувача НЕМАЄ в базі (він справді новий)
         button_text = "⚠️ Зареєструватися та почати"
         message_text = (
             "Вітаю! Схоже, ви тут вперше.\n\n"
@@ -38,69 +25,46 @@ async def handle_sell_command(message: Message):
             "Натисніть кнопку нижче, щоб продовжити."
         )
     else:
-        # 3. Якщо користувач ВЖЕ є в базі (він повертається)
         button_text = "🚗 Розмістити нове оголошення"
         message_text = (
             f"Раді бачити вас знову, {user['full_name']}!\n\n"
             "Натисніть, щоб додати нове оголошення."
         )
 
-    # 4. Створюємо клавіатуру з відповідним текстом
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=button_text, 
-                    callback_data="sell_car" # <--- callback_data та сама!
-                )
-            ]
+            [InlineKeyboardButton(text=button_text, callback_data="sell_car")]
         ]
     )
-    
+
     await message.answer(message_text, reply_markup=keyboard)
 
 
-# -------------------------------------------------------------------
-# ОБРОБНИК №2: ДЛЯ НАТИСКАННЯ КНОПКИ (БЕЗ ЗМІН)
-# -------------------------------------------------------------------
 @sell_router.callback_query(F.data == "sell_car")
 async def handle_sell_car(callback: CallbackQuery):
-    """
-    Цей обробник залишається БЕЗ ЗМІН.
-    Він, як і раніше, викликає get_or_create_user,
-    який або знайде, або СТВОРИТЬ користувача,
-    а потім оновить його роль на "seller", якщо потрібно.
-    """
     try:
         user_data = callback.from_user
-        
-        # Використовуємо .first_name, як ви просили
+
         user = await user_manager.get_or_create_user(
             telegram_id=user_data.id,
-            full_name=user_data.first_name, 
-            username=user_data.username
+            full_name=user_data.first_name,
+            username=user_data.username,
         )
-        
-        # Ця логіка, як і раніше, обробляє обидва випадки
-        if user['role'] == 'buyer':
+
+        if user["role"] == "buyer":
             await user_manager.set_user_role_seller(user_data.id)
-            
+
             await callback.message.answer(
                 "✅ **Реєстрацію завершено!**\n"
                 "Ви зареєстровані як **Продавець**.\n\n"
                 "Тепер давайте додамо ваше оголошення..."
             )
         else:
-            await callback.message.answer(
-                f"Починаємо процес додавання оголошення..."
-            )
-
-        # 3. Тут ви запускаєте FSM (машину станів)
-        
+            await callback.message.answer(f"Починаємо процес додавання оголошення...")
         await callback.answer()
 
     except Exception as e:
-        logging.error(f"Помилка в handle_sell_car: {e}", exc_info=True) 
+        logging.error(f"Помилка в handle_sell_car: {e}", exc_info=True)
         await callback.message.answer(
             "❌ **Виникла помилка**\n\n"
             "Щось пішло не так під час з'єднання з базою даних. "
