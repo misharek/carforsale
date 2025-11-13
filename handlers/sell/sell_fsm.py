@@ -8,7 +8,7 @@ fsm_router = Router()
 def is_digit_filter(message: types.Message):
     return message.text.isdigit()
 
-----------------------------------------------------
+#----------------------------------------------------
 # КРОК 1: Ловимо МАРКУ -> питаємо МОДЕЛЬ
 # ----------------------------------------------------
 @fsm_router.message(SellCarFSM.enter_brand, F.text)
