@@ -6,6 +6,7 @@ from config import BOT_TOKEN, DEFAULT_BOT_PROPERTIES
 
 from handlers.common import common_router
 from handlers.sell.sell_router import sell_router
+from handlers.sell.sell_fsm import fsm_router
 from handlers.buy.buy_router import buy_router
 
 
@@ -18,6 +19,7 @@ async def main():
 
     dp.include_router(common_router)
     dp.include_router(sell_router)
+    dp.include_router(fsm_router)
     dp.include_router(buy_router)
 
     await bot.delete_webhook(drop_pending_updates=True)
