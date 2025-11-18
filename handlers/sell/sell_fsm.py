@@ -1,13 +1,59 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-# Додано імпорт для фінального збереження:
 from datetime import datetime 
 from database.car_manager import add_car_ad
-
 from .sell_states import SellCarFSM
 
 fsm_router = Router()
+
+
+MODEL_DATABASE = {
+    "AUDI": ["A3", "A4", "A6", "A8", "Q3", "Q5", "Q7", "TT", "E-tron", "Q8", "A5", "S4"],
+    "BMW": ["X3", "X5", "X6", "3-Series", "5-Series", "7-Series", "1-Series", "I3", "I4", "I8", "M3", "Z4"],
+    "MERCEDES-BENZ": ["C-Class", "E-Class", "S-Class", "GLC", "GLE", "GLS", "A-Class", "B-Class", "CLA", "G-Class", "EQC", "Sprinter"],
+    "VOLKSWAGEN": ["Passat", "Golf", "Jetta", "Tiguan", "Touareg", "Polo", "Arteon", "Caddy", "Transporter", "ID.4", "Sharan", "Amarok"],
+    "FORD": ["Focus", "Fiesta", "Mondeo", "Kuga", "Explorer", "Edge", "Mustang", "Ranger", "Transit", "Puma", "Fusion", "Escort"],
+    "RENAULT": ["Megane", "Clio", "Logan", "Duster", "Captur", "Sandero", "Talisman", "Scenic", "Kadjar", "Koleos", "Zoe", "Twingo"],
+    "TOYOTA": ["Camry", "Corolla", "RAV4", "Land Cruiser", "Hilux", "Prius", "Yaris", "Auris", "C-HR", "Highlander", "Avensis", "Sequoia"],
+    "SKODA": ["Octavia", "Fabia", "Superb", "Kodiaq", "Karoq", "Rapid", "Scala", "Yeti", "Citigo", "Enyaq"],
+    "OPEL": ["Astra", "Vectra", "Corsa", "Insignia", "Zafira", "Mokka", "Crossland", "Grandland", "Vivaro", "Combo"],
+    "NISSAN": ["Qashqai", "X-Trail", "Juke", "Leaf", "Micra", "Note", "Patrol", "Navara", "Murano", "Rogue", "Sentra"],
+    "HYUNDAI": ["Accent", "Elantra", "Sonata", "Tucson", "Santa Fe", "Kona", "I10", "I20", "I30", "Creta", "Genesis"],
+    "KIA": ["Sportage", "Rio", "Ceed", "Optima", "Sorento", "Stinger", "Picanto", "K5", "Carnival", "Niro"],
+    "MAZDA": ["Mazda3", "Mazda6", "CX-5", "CX-9", "MX-5", "CX-3", "Mazda2", "Tribute"],
+    "PEUGEOT": ["308", "508", "2008", "3008", "5008", "208", "107", "Boxer", "Partner"],
+    "CITROEN": ["C4", "C5", "C3", "DS4", "Berlingo", "Jumpy", "C-Elysée", "Picasso"],
+    "LAND ROVER": ["Range Rover", "Discovery", "Defender", "Evoque", "Freelander", "Velar", "Sport"],
+    "LEXUS": ["RX", "NX", "ES", "IS", "GS", "LS", "GX", "LX", "UX"],
+    "PORSCHE": ["Cayenne", "Panamera", "911", "Macan", "Taycan", "Boxster", "Cayman"],
+    "MITSUBISHI": ["Lancer", "Outlander", "ASX", "Pajero", "Eclipse", "L200", "Galant"],
+    "SUBARU": ["Forester", "Outback", "Legacy", "Impreza", "XV", "WRX", "BRZ"],
+    "CHEVROLET": ["Aveo", "Lacetti", "Cruze", "Malibu", "Camaro", "Tahoe", "Spark"],
+    "HONDA": ["Civic", "CR-V", "Accord", "Jazz", "HR-V", "Pilot", "Legend"],
+    "CHRYSLER": ["300C", "Pacifica", "Voyager", "Sebring", "Town & Country"],
+    "FIAT": ["500", "Panda", "Tipo", "Punto", "Doblo", "Ducato", "Linea"],
+    "SUZUKI": ["Vitara", "SX4", "Swift", "Jimny", "Grand Vitara", "Ignis"],
+    "OTHER": ["Інша модель"]
+}
+
+BRAND_MAPPING = {
+    "VW": "VOLKSWAGEN",
+    "VOLKSWAGEN": "VOLKSWAGEN",
+
+    "MB": "MERCEDES-BENZ",
+    "MERCEDES": "MERCEDES-BENZ",
+    "MERCEDES-BENZ": "MERCEDES-BENZ",
+
+    "BMW": "BMW",
+    "B.M.W.": "BMW",
+    "B.M.W": "BMW",
+    "AUDI": "AUDI",
+    "A.U.D.I.": "AUDI",
+}
+for brand_name in MODEL_DATABASE.keys():
+    if brand_name not in BRAND_MAPPING:
+        BRAND_MAPPING[brand_name] = brand_name
 
 ALLOWED_COLORS = [
     "Чорний", "Білий", "Сірий", "Синій",
@@ -19,6 +65,16 @@ back_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
     one_time_keyboard=True
 )
+
+MAIN_MENU_RETURN_KB = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="/sell"), KeyboardButton(text="/buy")],
+        [KeyboardButton(text="/myads"), KeyboardButton(text="/help")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=False 
+)
+
 
 @fsm_router.message(F.text == "🔙 Назад")
 async def go_back(message: types.Message, state: FSMContext):
@@ -87,23 +143,49 @@ async def go_back(message: types.Message, state: FSMContext):
         await message.answer("↪️ Повертаємось. Введіть ціну ($):", reply_markup=back_kb)
 
 
-@fsm_router.message(SellCarFSM.enter_brand, F.text)
+@fsm_router.message(SellCarFSM.enter_brand, F.text, ~F.text.startswith('/'))
 async def handle_brand(message: types.Message, state: FSMContext):
-    clean_brand = message.text.strip().upper()
+    clean_input = message.text.strip().upper()
     
-    await state.update_data(brand=clean_brand)
+    if clean_input not in BRAND_MAPPING:
+        await message.answer(
+            f"❌ Марка '{clean_input}' не знайдена. Будь ласка, введіть повну назву або відоме скорочення.", 
+            reply_markup=back_kb
+        )
+        return
+        
+    canonical_brand = BRAND_MAPPING[clean_input]
+
+    relevant_models = MODEL_DATABASE.get(canonical_brand, [])
+    model_examples = ", ".join(relevant_models[:3])
+
+    await state.update_data(brand=canonical_brand)
     await state.set_state(SellCarFSM.enter_model)
     
     await message.answer(
-        f"✅ Марка: {clean_brand}\n\n"
-        "**Крок 2/9: Введіть МОДЕЛЬ** (напр., X5, Passat, Focus):",
+        f"✅ Марка: {canonical_brand}\n\n"
+        f"**Крок 2/9: Введіть МОДЕЛЬ** (напр., {model_examples}):",
         reply_markup=back_kb
     )
-
-@fsm_router.message(SellCarFSM.enter_model, F.text)
+@fsm_router.message(SellCarFSM.enter_model, F.text, ~F.text.startswith('/'))
 async def handle_model(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    brand = data.get('brand') 
     clean_model = message.text.strip().title()
 
+    allowed_models = MODEL_DATABASE.get(brand, []) 
+
+    if clean_model not in allowed_models:
+        suggestions = ", ".join(allowed_models[:5]) 
+        
+        await message.answer(
+            f"❌ Модель '{clean_model}' не відповідає марці {brand}.\n"
+            f"Введіть коректну назву. Наприклад: {suggestions}, ...",
+            reply_markup=back_kb
+        )
+        return
+
+    # Якщо валідація пройшла успішно
     await state.update_data(model=clean_model)
     await state.set_state(SellCarFSM.enter_year)
     
@@ -113,7 +195,7 @@ async def handle_model(message: types.Message, state: FSMContext):
         reply_markup=back_kb
     )
 
-@fsm_router.message(SellCarFSM.enter_year)
+@fsm_router.message(SellCarFSM.enter_year, F.text, ~F.text.startswith('/'))
 async def handle_year(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await message.answer("⚠️ Будь ласка, введіть тільки цифри (наприклад: 2019).", reply_markup=back_kb)
@@ -133,7 +215,7 @@ async def handle_year(message: types.Message, state: FSMContext):
         reply_markup=back_kb
     )
 
-@fsm_router.message(SellCarFSM.enter_mileage)
+@fsm_router.message(SellCarFSM.enter_mileage, F.text, ~F.text.startswith('/'))
 async def handle_mileage(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await message.answer("⚠️ Введіть пробіг цілим числом (наприклад: 150).", reply_markup=back_kb)
@@ -162,7 +244,7 @@ async def handle_mileage(message: types.Message, state: FSMContext):
     )
 
 
-@fsm_router.message(SellCarFSM.enter_color, F.text)
+@fsm_router.message(SellCarFSM.enter_color, F.text, ~F.text.startswith('/'))
 async def handle_color(message: types.Message, state: FSMContext):
     selected_color = message.text.strip().capitalize()
 
@@ -193,7 +275,7 @@ async def handle_color(message: types.Message, state: FSMContext):
     )
 
 
-@fsm_router.message(SellCarFSM.enter_fuel_type, F.text)
+@fsm_router.message(SellCarFSM.enter_fuel_type, F.text, ~F.text.startswith('/')) 
 async def handle_fuel(message: types.Message, state: FSMContext):
     text = message.text.strip().title()
     valid_fuels = ["Бензин", "Дизель", "Газ", "Електро", "Гібрид"]
@@ -235,7 +317,7 @@ async def handle_photo(message: types.Message, state: FSMContext):
     )
 
 
-@fsm_router.message(SellCarFSM.enter_description, F.text)
+@fsm_router.message(SellCarFSM.enter_description, F.text, ~F.text.startswith('/')) 
 async def handle_description(message: types.Message, state: FSMContext):
     if message.text == "▶️ Пропустити":
         desc = "Не вказано"
@@ -253,7 +335,7 @@ async def handle_description(message: types.Message, state: FSMContext):
         reply_markup=back_kb
     )
 
-@fsm_router.message(SellCarFSM.enter_price) 
+@fsm_router.message(SellCarFSM.enter_price, F.text, ~F.text.startswith('/')) 
 async def handle_price(message: types.Message, state: FSMContext):
     
     if not message.text.isdigit():
@@ -300,18 +382,21 @@ async def handle_price(message: types.Message, state: FSMContext):
 async def publish_ad(message: types.Message, state: FSMContext):
     data = await state.get_data()
     
-    # Додано ключ зв'язку з користувачем та час публікації
     data['seller_id'] = message.from_user.id
     data['published_at'] = datetime.utcnow()
 
     car_id = await add_car_ad(data) 
 
     await message.answer(
-        "🎉 **Оголошення успішно опубліковано!**", reply_markup=ReplyKeyboardRemove()
+        "🎉 **Оголошення успішно опубліковано!**", 
+        reply_markup=MAIN_MENU_RETURN_KB
     )
     await state.clear()
 
 @fsm_router.message(SellCarFSM.confirm_ad, F.text == "❌ Скасувати")
 async def cancel_ad(message: types.Message, state: FSMContext):
-    await message.answer("Створення оголошення скасовано.", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "Створення оголошення скасовано.", 
+        reply_markup=MAIN_MENU_RETURN_KB
+    )
     await state.clear()

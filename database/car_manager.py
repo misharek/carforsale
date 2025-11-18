@@ -36,3 +36,12 @@ async def find_car_ads(query: dict = None, limit: int = 10, skip: int = 0):
     # Перетворюємо курсор у список
     cars = await cursor.to_list(length=limit)
     return cars
+
+async def delete_car_ad(ad_id: str):
+
+    try:
+        result = await cars_collection.delete_one({"_id": ObjectId(ad_id)})
+        return result.deleted_count > 0 
+    except Exception as e:
+        print(f"Помилка видалення: {e}")
+        return False
