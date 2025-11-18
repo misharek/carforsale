@@ -3,10 +3,16 @@ from datetime import datetime
 
 
 async def get_user_by_id(telegram_id: int):
+    """
+    Знаходить користувача за його Telegram ID.
+    """
     return await users_collection.find_one({"telegram_id": telegram_id})
 
 
 async def get_or_create_user(telegram_id: int, full_name: str, username: str = None):
+    """
+    Знаходить існуючого користувача або створює нового з роллю 'buyer'.
+    """
     user = await get_user_by_id(telegram_id)
 
     if user:
@@ -29,9 +35,10 @@ async def get_or_create_user(telegram_id: int, full_name: str, username: str = N
 
 
 async def set_user_role_seller(telegram_id: int):
-
+    """
+    Змінює роль користувача на 'seller'.
+    """
     filter_query = {"telegram_id": telegram_id}
-
     update_data = {"$set": {"role": "seller"}}
 
     result = await users_collection.update_one(filter_query, update_data)
@@ -39,15 +46,14 @@ async def set_user_role_seller(telegram_id: int):
     if result.modified_count > 0:
         print(f"👤 Роль для {telegram_id} оновлено на 'seller'")
 
-    return result.modified_count > 0  # Поверне True, якщо оновлення відбулось
+    return result.modified_count > 0
 
 
-async def update_user_phone(telegram_id: int, phone_number: str):
+async def update_user_phone(telegram_id: int, phone_number: str, full_name: str = None):
     """
     Додає або оновлює номер телефону користувача.
-    Це буде потрібно для продавців.
+    Включає логування імені.
     """
-    # Переконуємось, що номер телефону у правильному форматі (з +)
     if not phone_number.startswith("+"):
         phone_number = f"+{phone_number}"
 
@@ -57,6 +63,7 @@ async def update_user_phone(telegram_id: int, phone_number: str):
     result = await users_collection.update_one(filter_query, update_data)
 
     if result.modified_count > 0:
-        print(f"📞 Телефон для {telegram_id} оновлено.")
+        log_info = full_name if full_name else telegram_id
+        print(f"📞 Телефон для {log_info} оновлено.")
 
     return result.modified_count > 0

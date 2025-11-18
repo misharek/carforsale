@@ -12,3 +12,7 @@ class SellCarFSM(StatesGroup):
     enter_description = State()
     enter_price = State()
     confirm_ad = State()
+    
+class SellerFSM(StatesGroup):
+    """Стани для одноразового налаштування продавця."""
+    enter_phone = State()
