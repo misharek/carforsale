@@ -46,6 +46,7 @@ async def handle_aboutus(message: types.Message):
     ~Command("sell"),
     ~Command("buy"),
     ~Command("myads"),
+    ~Command("skip"),
 )
 async def handle_unknown_commands(message: types.Message):
     error_message = "❌ **Невірна команда.** Будь ласка, використайте команду: /help."

@@ -33,10 +33,9 @@ async def get_or_create_user(telegram_id: int, full_name: str, username: str = N
 
         return new_user
 
-
-async def set_user_role_seller(telegram_id: int):
+async def set_user_role_seller(telegram_id: int, full_name: str = None):
     """
-    Змінює роль користувача на 'seller'.
+    Змінює роль користувача на 'seller' та логує ім'я.
     """
     filter_query = {"telegram_id": telegram_id}
     update_data = {"$set": {"role": "seller"}}
@@ -44,7 +43,8 @@ async def set_user_role_seller(telegram_id: int):
     result = await users_collection.update_one(filter_query, update_data)
 
     if result.modified_count > 0:
-        print(f"👤 Роль для {telegram_id} оновлено на 'seller'")
+        log_info = full_name if full_name else telegram_id
+        print(f"👤 Роль для {log_info} оновлено на 'seller'")
 
     return result.modified_count > 0
 
@@ -64,6 +64,6 @@ async def update_user_phone(telegram_id: int, phone_number: str, full_name: str 
 
     if result.modified_count > 0:
         log_info = full_name if full_name else telegram_id
-        print(f"📞 Телефон для {log_info} оновлено.")
+        print(f"📞 Номер телефону для {log_info} оновлено на {phone_number}")
 
     return result.modified_count > 0
