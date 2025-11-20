@@ -1,5 +1,3 @@
-# database/cars_data.py
-
 MODEL_DATABASE = {
     "AUDI": ["A3", "A4", "A6", "A8", "Q3", "Q5", "Q7", "TT", "E-tron", "Q8", "A5", "S4"],
     "BMW": ["X3", "X5", "X6", "3-Series", "5-Series", "7-Series", "1-Series", "I3", "I4", "I8", "M3", "Z4"],
@@ -53,3 +51,5 @@ ALLOWED_COLORS = [
 ]
 
 FUEL_TYPES = ["Бензин", "Дизель", "Газ", "Електро", "Гібрид"]
+
+

@@ -45,3 +45,6 @@ async def delete_car_ad(ad_id: str):
     except Exception as e:
         print(f"Помилка видалення: {e}")
         return False
+    
+async def count_car_ads(query: dict = None):
+    return await cars_collection.count_documents(query or {})
