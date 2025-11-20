@@ -22,7 +22,7 @@ MENU_TEXT = "🔍 **ПОШУК АВТОМОБІЛІВ**\n\nНалаштуйте 
 MAIN_MENU_KB = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="/sell"), KeyboardButton(text="/buy")],
-        [KeyboardButton(text="/myads"), KeyboardButton(text="/help")]
+        [KeyboardButton(text="/my_ads"), KeyboardButton(text="/help")]
     ],
     resize_keyboard=True,
     one_time_keyboard=False
@@ -82,13 +82,24 @@ async def show_filter_menu(message: types.Message, state: FSMContext):
 # ==========================================
 @buy_router.message(Command("buy"))
 async def handle_buy_command(message: types.Message, state: FSMContext):
+    # 1. Видаляємо повідомлення користувача
+    try: await message.delete()
+    except: pass
+
+    # 2. Видаляємо старе меню
+    data = await state.get_data()
+    old_menu_id = data.get("main_menu_id")
+    if old_menu_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=old_menu_id)
+        except: pass
+
     await state.clear()
     user = await get_user(message.from_user.id)
     
     if user:
         await show_filter_menu(message, state)
     else:
-        # 🔥 ЗМІНЕНО: Кнопка тепер з жовтим знаком оклику
         reg_kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="⚠️ Зареєструватися та почати", callback_data="register_buyer")]
@@ -99,6 +110,38 @@ async def handle_buy_command(message: types.Message, state: FSMContext):
             "Ви тут вперше. Натисніть кнопку для реєстрації.",
             reply_markup=reg_kb
         )
+
+
+# ==========================================
+# 2. ДОПОМОГА (/help)
+# ==========================================
+@buy_router.message(Command("help"))
+async def handle_help_command(message: types.Message, state: FSMContext):
+    try: await message.delete()
+    except: pass
+
+    data = await state.get_data()
+    old_menu_id = data.get("main_menu_id")
+    if old_menu_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=old_menu_id)
+        except: pass
+
+    help_text = (
+        "🤖 **Допомога по боту**\n\n"
+        "📌 **/buy** — Пошук автомобілів. Використовуйте фільтри.\n"
+        "📌 **/sell** — Продаж автомобіля.\n"
+        "📌 **/my_ads** — Ваші оголошення.\n"
+        "📌 **/help** — Довідка.\n"
+    )
+    
+    back_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Головне меню", callback_data="main_menu")]
+        ]
+    )
+    await message.answer(help_text, reply_markup=back_kb)
+
 
 @buy_router.callback_query(F.data == "register_buyer")
 async def register_buyer_handler(callback: CallbackQuery, state: FSMContext):
@@ -264,8 +307,15 @@ async def start_model(callback: CallbackQuery, state: FSMContext):
         await callback.answer("⚠️ Спочатку оберіть Марку!", show_alert=True)
         return
 
+    # 🔥 ВИПРАВЛЕННЯ ТУТ: Генеруємо приклади моделей динамічно
+    relevant_models = MODEL_DATABASE.get(brand, [])
+    if relevant_models:
+        example_text = ", ".join(relevant_models[:3])
+    else:
+        example_text = "X5" # Дефолтний варіант, якщо моделей немає в базі
+
     await callback.message.edit_text(
-        f"🚘 Введіть модель для {brand} (наприклад X5):",
+        f"🚘 Введіть модель для {brand} (наприклад: {example_text}):",
         reply_markup=get_input_control_keyboard(show_skip=False)
     )
     await state.set_state(BuyCarFSM.enter_model)
@@ -287,6 +337,7 @@ async def set_model(message: types.Message, state: FSMContext):
         await state.update_data(model=found_model)
         await refresh_menu(message, state)
     else:
+        # Тут приклади вже були, залишаємо як є
         available = ", ".join(MODEL_DATABASE.get(brand, [])[:3])
         await show_temp_error(
             message,
@@ -454,8 +505,12 @@ async def back_to_filters_handler(callback: CallbackQuery, state: FSMContext):
 async def back_main(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
-    await callback.message.delete()
-    await callback.message.answer(
+    
+    try: await callback.message.delete()
+    except: pass
+    
+    menu_msg = await callback.message.answer(
         "🏠 Ви в головному меню. Оберіть дію:", 
         reply_markup=MAIN_MENU_KB
     )
+    await state.update_data(main_menu_id=menu_msg.message_id)

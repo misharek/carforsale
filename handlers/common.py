@@ -45,7 +45,7 @@ async def handle_aboutus(message: types.Message):
     ~Command("aboutus"),
     ~Command("sell"),
     ~Command("buy"),
-    ~Command("myads"),
+    ~Command("my_ads"),
     ~Command("skip"),
 )
 async def handle_unknown_commands(message: types.Message):

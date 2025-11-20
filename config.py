@@ -8,8 +8,6 @@ load_dotenv()
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-DEFAULT_BOT_PROPERTIES = {"parse_mode": ParseMode.HTML}
-
 DEFAULT_BOT_PROPERTIES = DefaultBotProperties(parse_mode=ParseMode.MARKDOWN)
 
 HELP_TEXT = (

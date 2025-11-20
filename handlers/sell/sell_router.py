@@ -29,11 +29,16 @@ async def show_temp_message(message: Message, text: str, delay: int = 3):
 # 1. СТАРТ ПРОДАЖУ
 # ==========================================
 @sell_router.message(Command("sell"))
-async def handle_sell_command(message: Message):
-    # Видаляємо повідомлення користувача /sell для чистоти
+async def handle_sell_command(message: Message, state: FSMContext):
     try: await message.delete()
     except: pass
 
+    data = await state.get_data()
+    old_menu_id = data.get("main_menu_id")
+    if old_menu_id:
+        try: await message.bot.delete_message(chat_id=message.chat.id, message_id=old_menu_id)
+        except: pass
+    
     user = await user_manager.get_user_by_id(message.from_user.id)
     if user is None:
         button_text = "⚠️ Зареєструватися та почати"
@@ -44,7 +49,8 @@ async def handle_sell_command(message: Message):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=button_text, callback_data="sell_car")]
+            [InlineKeyboardButton(text=button_text, callback_data="sell_car")],
+            [InlineKeyboardButton(text="🔙 Головне меню", callback_data="main_menu")]
         ]
     )
     await message.answer(message_text, reply_markup=keyboard)
@@ -56,7 +62,6 @@ async def handle_sell_command(message: Message):
 @sell_router.callback_query(F.data == "sell_car")
 async def handle_sell_car(callback: CallbackQuery, state: FSMContext):
     try:
-        # Видаляємо попереднє меню з кнопкою
         try: await callback.message.delete()
         except: pass
 
@@ -68,53 +73,55 @@ async def handle_sell_car(callback: CallbackQuery, state: FSMContext):
         )
 
         alert_text = None
-
-        # Логіка зміни ролі
         if user["role"] == "buyer":
             await user_manager.set_user_role_seller(user_data.id, full_name=user_data.full_name)
             user["role"] = "seller"
             alert_text = "✅ Ви тепер зареєстровані як Продавець!"
 
-        # === ЛОГІКА ПЕРЕВІРКИ ТЕЛЕФОНУ ===
         if user.get("phone_number") is None:
-            # Показуємо алерт, якщо він був
-            if alert_text:
-                await callback.answer(alert_text, show_alert=True)
-            else:
-                await callback.answer()
+            if alert_text: await callback.answer(alert_text, show_alert=True)
+            else: await callback.answer()
 
             await state.set_state(SellerFSM.enter_phone)
             
             contact_kb = ReplyKeyboardMarkup(
                 keyboard=[
-                    [KeyboardButton(text="📱 Поділитися контактом", request_contact=True)]
+                    [KeyboardButton(text="📱 Поділитися контактом", request_contact=True)],
+                    [KeyboardButton(text="❌ Скасувати")]
                 ],
                 resize_keyboard=True,
                 one_time_keyboard=True,
             )
             
-            # 🔥 ЗБЕРІГАЄМО ПОВІДОМЛЕННЯ, ЩОБ ВИДАЛИТИ ЙОГО ПОТІМ
             request_msg = await callback.message.answer(
                 "❗️ **Потрібен Ваш контакт.**\n\n"
                 "Щоб покупці могли з Вами зв'язатися, поділіться, будь ласка, номером телефону:",
                 reply_markup=contact_kb
             )
-            # Записуємо ID цього повідомлення в пам'ять
             await state.update_data(phone_request_id=request_msg.message_id)
+            # Зберігаємо ID повідомлення, щоб видалити його при скасуванні
+            await state.update_data(last_bot_msg_id=request_msg.message_id)
             return
             
-        # === ЯКЩО ТЕЛЕФОН ВЖЕ Є ===
-        if alert_text:
-            await callback.answer(alert_text, show_alert=True)
-        else:
-            await callback.answer()
+        if alert_text: await callback.answer(alert_text, show_alert=True)
+        else: await callback.answer()
 
         await state.set_state(SellCarFSM.enter_brand)
-        await callback.message.answer(
+        
+        cancel_kb = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="❌ Скасувати")]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+
+        # 🔥 ЗМІНА: Зберігаємо об'єкт повідомлення у змінну msg
+        msg = await callback.message.answer(
             "🚗 **Створення оголошення**\n\n"
             "**Крок 1/9: Введіть МАРКУ авто** (наприклад: BMW, Audi, Ford):",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=cancel_kb
         )
+        # 🔥 ЗМІНА: Записуємо ID цього повідомлення в state
+        await state.update_data(last_bot_msg_id=msg.message_id)
 
     except Exception as e:
         logging.error(f"Помилка sell_car: {e}", exc_info=True)
@@ -123,33 +130,35 @@ async def handle_sell_car(callback: CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# 3. ОБРОБКА ТЕЛЕФОНУ (Видалення старих повідомлень)
+# 3. ОБРОБКА ТЕЛЕФОНУ
 # ==========================================
 @sell_router.message(SellerFSM.enter_phone, F.contact | F.text)
 async def handle_phone_request(message: Message, state: FSMContext):
-    # 1. Видаляємо повідомлення, яке надіслав користувач (контакт або текст)
     try: await message.delete()
     except: pass
 
-    # 2. 🔥 ВИДАЛЯЄМО ПОВІДОМЛЕННЯ БОТА ("Потрібен контакт"), ЯКЕ БУЛО НА СКРІНШОТІ
     data = await state.get_data()
     request_msg_id = data.get("phone_request_id")
     if request_msg_id:
         try:
             await message.bot.delete_message(chat_id=message.chat.id, message_id=request_msg_id)
         except:
-            pass # Якщо вже видалено або помилка
+            pass 
 
-    # Обробка номера
     if message.contact:
         phone_number = message.contact.phone_number
     elif message.text:
+        if message.text == "❌ Скасувати": 
+            return # Це обробить sell_fsm
         phone_number = message.text.strip()
     else:
-        await show_temp_message(message, "⚠️ Скористайтеся кнопкою або введіть номер.", delay=4)
+        # Якщо це не текст і не контакт, видалимо і це
+        msg = await message.answer("⚠️ Скористайтеся кнопкою або введіть номер.", reply_markup=ReplyKeyboardRemove())
+        await asyncio.sleep(3)
+        try: await msg.delete()
+        except: pass
         return
 
-    # Оновлення в БД
     user_full_name = message.from_user.full_name
     await user_manager.update_user_phone(
         telegram_id=message.from_user.id, 
@@ -157,43 +166,64 @@ async def handle_phone_request(message: Message, state: FSMContext):
         full_name=user_full_name
     )
     
-    # Очищаємо дані про ID повідомлення, але переходимо в наступний стан
     await state.update_data(phone_request_id=None) 
     
-    # 3. Показуємо повідомлення про успіх, яке зникає через 3 секунди
     temp_success = await message.answer(
         f"✅ Номер {phone_number} збережено!\nРеєстрацію завершено.",
         reply_markup=ReplyKeyboardRemove()
     )
     
-    # Перехід до кроку 1
     await state.set_state(SellCarFSM.enter_brand)
     
-    # Чекаємо 3 сек, видаляємо успіх і показуємо питання про марку
     await asyncio.sleep(3)
     try: await temp_success.delete()
     except: pass
 
-    await message.answer(
+    cancel_kb = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="❌ Скасувати")]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+    
+    # 🔥 ЗМІНА: Тут теж зберігаємо ID повідомлення
+    msg = await message.answer(
         "🚗 **Створення оголошення**\n\n"
-        "**Крок 1/9: Введіть МАРКУ авто** (наприклад: BMW, Audi, Ford):"
+        "**Крок 1/9: Введіть МАРКУ авто** (наприклад: BMW, Audi, Ford):",
+        reply_markup=cancel_kb
     )
+    await state.update_data(last_bot_msg_id=msg.message_id)
 
 
 # ==========================================
-# 4. МОЇ ОГОЛОШЕННЯ
+# 4. МОЇ ОГОЛОШЕННЯ (/my_ads)
 # ==========================================
-@sell_router.message(Command("myads"))
-async def handle_my_ads(message: Message):
+@sell_router.message(Command("my_ads"))
+async def handle_my_ads_command(message: Message, state: FSMContext):
     try: await message.delete()
     except: pass
+
+    data = await state.get_data()
+    old_menu_id = data.get("main_menu_id")
+    if old_menu_id:
+        try:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=old_menu_id)
+        except: pass
+    
+    await state.update_data(main_menu_id=None)
 
     seller_id = message.from_user.id
     ads = await car_manager.find_car_ads(query={"seller_id": seller_id}, limit=100) 
     
     if not ads:
-        # Тимчасове повідомлення
-        await show_temp_message(message, "У вас немає активних оголошень. Розмістіть перше!", delay=5)
+        back_kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Розмістити оголошення", callback_data="sell_car")],
+                [InlineKeyboardButton(text="🔙 Головне меню", callback_data="main_menu")]
+            ]
+        )
+        msg = await message.answer("📂 У вас поки немає активних оголошень.", reply_markup=back_kb)
+        # Можна зберегти як меню, щоб потім видалити
+        await state.update_data(main_menu_id=msg.message_id)
         return
 
     response_text = "⭐️ **Ваші активні оголошення:** ⭐️\n\n"
@@ -208,8 +238,11 @@ async def handle_my_ads(message: Message):
         )
         keyboard_buttons.append([delete_button])
 
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Головне меню", callback_data="main_menu")])
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    await message.answer(response_text, reply_markup=keyboard, parse_mode='Markdown')
+    msg = await message.answer(response_text, reply_markup=keyboard, parse_mode='Markdown')
+    await state.update_data(main_menu_id=msg.message_id)
 
 
 @sell_router.callback_query(F.data.startswith("delete_ad_"))
@@ -218,9 +251,7 @@ async def handle_delete_ad(callback: CallbackQuery):
     success = await car_manager.delete_car_ad(ad_id)
     
     if success:
-        # Алерт по центру екрану
         await callback.answer("✅ Оголошення успішно видалено!", show_alert=True)
-        # Очищаємо повідомлення зі списком
         await callback.message.edit_text("♻️ Список оновлюється...")
         await asyncio.sleep(1)
         try: await callback.message.delete()
