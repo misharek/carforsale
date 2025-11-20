@@ -1,13 +1,15 @@
 import asyncio
+from datetime import datetime
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
-# 🔥 Імпортуємо дані для перевірки
+# Імпорт даних
 from database.cars_data import MODEL_DATABASE, BRAND_MAPPING, ALLOWED_COLORS, FUEL_TYPES
+from database.user_manager import get_user, add_user 
 
 # Імпорти з ваших файлів
 from handlers.buy.buy_states import BuyCarFSM
@@ -15,10 +17,8 @@ from handlers.buy.buy_keyboards import get_filter_keyboard, get_input_control_ke
 
 buy_router = Router()
 
-# Текст меню
 MENU_TEXT = "🔍 **ПОШУК АВТОМОБІЛІВ**\n\nНалаштуйте фільтри:"
 
-# --- КЛАВІАТУРА ГОЛОВНОГО МЕНЮ ---
 MAIN_MENU_KB = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="/sell"), KeyboardButton(text="/buy")],
@@ -28,47 +28,31 @@ MAIN_MENU_KB = ReplyKeyboardMarkup(
     one_time_keyboard=False
 )
 
-
-# --- ФУНКЦІЯ ПОКАЗУ ПОМИЛКИ (6 СЕКУНД) ---
+# --- Допоміжні функції ---
 async def show_temp_error(message: types.Message, text: str):
-    """Показує помилку, чекає 6 секунд і видаляє її."""
-    # 1. Видаляємо повідомлення користувача
     try: await message.delete()
     except: pass
-
-    # 2. Надсилаємо помилку
     error_msg = await message.answer(text)
-    
-    # 3. Чекаємо 6 секунд (як ви просили) ⏱️
     await asyncio.sleep(6)
-    
-    # 4. Видаляємо помилку
     try: await error_msg.delete()
     except: pass
 
-
-# --- ОНОВЛЕННЯ МЕНЮ ---
 async def refresh_menu(message: types.Message, state: FSMContext):
-    """Повертає користувача до меню фільтрів (Inline) і прибирає зайві повідомлення"""
     data = await state.get_data()
     menu_id = data.get("menu_message_id")
     prompt_id = data.get("reply_prompt_id")
     
-    # Видаляємо промпт (якщо був)
     if prompt_id:
         try: await message.bot.delete_message(chat_id=message.chat.id, message_id=prompt_id)
         except: pass
         await state.update_data(reply_prompt_id=None)
 
-    # Прибираємо Reply-клавіатуру знизу
     temp_msg = await message.answer("...", reply_markup=ReplyKeyboardRemove())
     await temp_msg.delete()
 
-    # Видаляємо повідомлення користувача
     try: await message.delete()
     except: pass
 
-    # Оновлюємо меню
     try:
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
@@ -82,13 +66,7 @@ async def refresh_menu(message: types.Message, state: FSMContext):
     
     await state.set_state(None)
 
-
-# ==========================================
-# 1. СТАРТ (/buy)
-# ==========================================
-@buy_router.message(Command("buy"))
-async def handle_buy(message: types.Message, state: FSMContext):
-    await state.clear()
+async def show_filter_menu(message: types.Message, state: FSMContext):
     temp = await message.answer("...", reply_markup=ReplyKeyboardRemove())
     await temp.delete()
     
@@ -100,8 +78,49 @@ async def handle_buy(message: types.Message, state: FSMContext):
 
 
 # ==========================================
-# 2. ЦІНА
+# 1. СТАРТ (/buy)
 # ==========================================
+@buy_router.message(Command("buy"))
+async def handle_buy_command(message: types.Message, state: FSMContext):
+    await state.clear()
+    user = await get_user(message.from_user.id)
+    
+    if user:
+        await show_filter_menu(message, state)
+    else:
+        # 🔥 ЗМІНЕНО: Кнопка тепер з жовтим знаком оклику
+        reg_kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="⚠️ Зареєструватися та почати", callback_data="register_buyer")]
+            ]
+        )
+        await message.answer(
+            f"Вітаю, {message.from_user.first_name}!\n"
+            "Ви тут вперше. Натисніть кнопку для реєстрації.",
+            reply_markup=reg_kb
+        )
+
+@buy_router.callback_query(F.data == "register_buyer")
+async def register_buyer_handler(callback: CallbackQuery, state: FSMContext):
+    user_data = callback.from_user
+    new_user = {
+        "telegram_id": user_data.id,
+        "full_name": user_data.full_name,
+        "username": f"@{user_data.username}" if user_data.username else None,
+        "role": "buyer", 
+        "phone_number": None,
+        "registration_date": datetime.utcnow()
+    }
+    await add_user(new_user)
+    await callback.answer("✅ Ви успішно зареєстровані!", show_alert=True)
+    await callback.message.delete()
+    await show_filter_menu(callback.message, state)
+
+
+# ==========================================
+# ФІЛЬТРИ (Ціна, Рік, Пробіг...)
+# ==========================================
+
 @buy_router.callback_query(F.data == "filter_price")
 async def start_price(callback: CallbackQuery, state: FSMContext):
     await callback.answer() 
@@ -139,10 +158,6 @@ async def set_max_price(message: types.Message, state: FSMContext):
     await state.update_data(max_price=int(message.text))
     await refresh_menu(message, state)
 
-
-# ==========================================
-# 3. РІК
-# ==========================================
 @buy_router.callback_query(F.data == "filter_year")
 async def start_year(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -180,10 +195,6 @@ async def set_max_year(message: types.Message, state: FSMContext):
     await state.update_data(max_year=int(message.text))
     await refresh_menu(message, state)
 
-
-# ==========================================
-# 4. ПРОБІГ
-# ==========================================
 @buy_router.callback_query(F.data == "filter_mileage")
 async def start_mileage(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -221,10 +232,6 @@ async def set_max_mileage(message: types.Message, state: FSMContext):
     await state.update_data(max_mileage=int(message.text))
     await refresh_menu(message, state)
 
-
-# ==========================================
-# 5. МАРКА
-# ==========================================
 @buy_router.callback_query(F.data == "filter_brand")
 async def start_brand(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -248,10 +255,6 @@ async def set_brand(message: types.Message, state: FSMContext):
             "⚠️ Така марка не знайдена. Спробуйте ввести офіційну назву (наприклад: Audi, BMW)."
         )
 
-
-# ==========================================
-# 6. МОДЕЛЬ
-# ==========================================
 @buy_router.callback_query(F.data == "filter_model")
 async def start_model(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -290,10 +293,6 @@ async def set_model(message: types.Message, state: FSMContext):
             f"⚠️ Модель '{input_model}' не знайдена для {brand}.\nСпробуйте: {available}..."
         )
 
-
-# ==========================================
-# 7. КОЛІР (Reply Buttons)
-# ==========================================
 @buy_router.callback_query(F.data == "filter_color")
 async def start_color(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -326,10 +325,6 @@ async def set_color(message: types.Message, state: FSMContext):
     else:
         await show_temp_error(message, "⚠️ Оберіть колір, використовуючи кнопки нижче 👇")
 
-
-# ==========================================
-# 8. ПАЛИВО (Reply Buttons)
-# ==========================================
 @buy_router.callback_query(F.data == "filter_fuel")
 async def start_fuel(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -362,10 +357,6 @@ async def set_fuel(message: types.Message, state: FSMContext):
     else:
         await show_temp_error(message, "⚠️ Оберіть паливо, використовуючи кнопки нижче 👇")
 
-
-# ==========================================
-# 9. УПРАВЛІННЯ
-# ==========================================
 @buy_router.callback_query(F.data == "skip_step")
 async def skip_current_step(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -417,16 +408,11 @@ async def clear_filters(callback: CallbackQuery, state: FSMContext):
     except TelegramBadRequest:
         pass
 
-
-# ==========================================
-# 10. ПОКАЗ РЕЗУЛЬТАТІВ (Імітація)
-# ==========================================
 @buy_router.callback_query(F.data == "show_results")
 async def show_res(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
     
-    # --- ІМІТАЦІЯ ---
     car_example = {
         "brand": "BMW", "model": "X5", "year": 2019, "price": 45000,
         "mileage": 68, "fuel": "Дизель",

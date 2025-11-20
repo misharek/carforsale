@@ -2,6 +2,24 @@ from ._db_connector import users_collection
 from datetime import datetime
 
 
+async def get_user(user_id: int):
+    """
+    Отримати користувача за Telegram ID.
+    Повертає None, якщо користувача немає.
+    """
+    return await users_collection.find_one({"telegram_id": user_id})
+
+async def add_user(user_data: dict):
+    """
+    Додати або оновити користувача в базі.
+    """
+    await users_collection.update_one(
+        {"telegram_id": user_data["telegram_id"]},
+        {"$set": user_data},
+        upsert=True
+    )
+    print(f"✅ Користувач {user_data.get('full_name')} збережений/оновлений.")
+
 async def get_user_by_id(telegram_id: int):
     """
     Знаходить користувача за його Telegram ID.
