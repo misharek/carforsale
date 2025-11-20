@@ -10,7 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 # Імпорт даних та функцій бази
 from database.cars_data import MODEL_DATABASE, BRAND_MAPPING, ALLOWED_COLORS, FUEL_TYPES
 from database.user_manager import get_user, add_user 
-from database.car_manager import find_car_ads, count_car_ads # Не забудь додати count_car_ads в car_manager.py!
+from database.car_manager import find_car_ads, count_car_ads 
 
 # Імпорти станів та клавіатур
 from handlers.buy.buy_states import BuyCarFSM
@@ -36,26 +36,21 @@ MAIN_MENU_KB = ReplyKeyboardMarkup(
 def build_mongo_query(data: dict) -> dict:
     """Перетворює дані з FSM у запит MongoDB"""
     query = {}
-
-    # Точні співпадіння
     if data.get("brand"): query["brand"] = data["brand"]
     if data.get("model"): query["model"] = data["model"]
     if data.get("color"): query["color"] = data["color"]
     if data.get("fuel"): query["fuel"] = data["fuel"]
 
-    # Ціна (Price)
     if data.get("min_price") or data.get("max_price"):
         query["price"] = {}
         if data.get("min_price"): query["price"]["$gte"] = data["min_price"]
         if data.get("max_price"): query["price"]["$lte"] = data["max_price"]
 
-    # Рік (Year)
     if data.get("min_year") or data.get("max_year"):
         query["year"] = {}
         if data.get("min_year"): query["year"]["$gte"] = data["min_year"]
         if data.get("max_year"): query["year"]["$lte"] = data["max_year"]
 
-    # Пробіг (Mileage)
     if data.get("min_mileage") or data.get("max_mileage"):
         query["mileage"] = {}
         if data.get("min_mileage"): query["mileage"]["$gte"] = data["min_mileage"]
@@ -66,10 +61,7 @@ def build_mongo_query(data: dict) -> dict:
 def format_car_caption(car: dict) -> str:
     """Формує текст картки авто"""
     desc = car.get('description', 'Не вказано')
-    if desc == "Не вказано":
-        desc_text = ""
-    else:
-        desc_text = f"\n📝 _{desc}_"
+    desc_text = "" if desc == "Не вказано" else f"\n📝 _{desc}_"
 
     return (
         f"🚗 **{car['brand']} {car['model']}** ({car['year']})\n"
@@ -80,14 +72,16 @@ def format_car_caption(car: dict) -> str:
         f"{desc_text}"
     )
 
+# 🔥 ОНОВЛЕНА ФУНКЦІЯ КЛАВІАТУРИ (Змінено текст кнопки)
 def get_pagination_keyboard(page_index: int, total: int, seller_id: int) -> InlineKeyboardMarkup:
     """Створює кнопки під карткою авто (Вперед/Назад)"""
     builder = InlineKeyboardBuilder()
     current_display = f"{page_index + 1} / {total}"
     
-    builder.button(text="📞 Контакти продавця", callback_data=f"get_contact_{seller_id}")
+    # Змінив текст тут 👇
+    builder.button(text="📞 Зв'язок з продавцем", callback_data=f"get_contact_{seller_id}")
     builder.button(text="⬅️", callback_data="prev_car")
-    builder.button(text=current_display, callback_data="noop") # noop = no operation (просто текст)
+    builder.button(text=current_display, callback_data="noop")
     builder.button(text="➡️", callback_data="next_car")
     builder.button(text="🔙 Змінити фільтри", callback_data="back_to_filters")
     
@@ -95,7 +89,6 @@ def get_pagination_keyboard(page_index: int, total: int, seller_id: int) -> Inli
     return builder.as_markup()
 
 async def show_temp_error(message: types.Message, text: str):
-    """Показує помилку, яка зникає через 4 секунди"""
     try: await message.delete()
     except: pass
     error_msg = await message.answer(text)
@@ -104,22 +97,18 @@ async def show_temp_error(message: types.Message, text: str):
     except: pass
 
 async def refresh_menu(message: types.Message, state: FSMContext):
-    """Оновлює повідомлення з меню фільтрів"""
     data = await state.get_data()
     menu_id = data.get("menu_message_id")
     prompt_id = data.get("reply_prompt_id")
     
-    # Видаляємо стару підказку (якщо була клавіатура знизу)
     if prompt_id:
         try: await message.bot.delete_message(chat_id=message.chat.id, message_id=prompt_id)
         except: pass
         await state.update_data(reply_prompt_id=None)
 
-    # Видаляємо повідомлення користувача
     try: await message.delete()
     except: pass
 
-    # Оновлюємо меню
     try:
         await message.bot.edit_message_text(
             chat_id=message.chat.id,
@@ -128,18 +117,14 @@ async def refresh_menu(message: types.Message, state: FSMContext):
             reply_markup=get_filter_keyboard(data)
         )
     except:
-        # Якщо повідомлення застаріло або його немає - відправляємо нове
         msg = await message.answer(MENU_TEXT, reply_markup=get_filter_keyboard(data))
         await state.update_data(menu_message_id=msg.message_id)
     
     await state.set_state(None)
 
 async def show_filter_menu(message: types.Message, state: FSMContext):
-    """Показує чисте меню фільтрів"""
-    # Очищаємо клавіатуру Reply (знизу), якщо вона була
     temp = await message.answer("...", reply_markup=ReplyKeyboardRemove())
     await temp.delete()
-    
     msg = await message.answer(MENU_TEXT, reply_markup=get_filter_keyboard({}))
     await state.update_data(menu_message_id=msg.message_id)
 
@@ -152,8 +137,6 @@ async def show_filter_menu(message: types.Message, state: FSMContext):
 async def handle_buy_command(message: types.Message, state: FSMContext):
     try: await message.delete()
     except: pass
-
-    # Видаляємо старе меню якщо є
     data = await state.get_data()
     old_menu_id = data.get("main_menu_id")
     if old_menu_id:
@@ -178,7 +161,6 @@ async def handle_buy_command(message: types.Message, state: FSMContext):
 async def handle_help_command(message: types.Message, state: FSMContext):
     try: await message.delete()
     except: pass
-    
     help_text = (
         "🤖 **Допомога по боту**\n\n"
         "📌 **/buy** — Пошук автомобілів.\n"
@@ -443,7 +425,6 @@ async def skip_current_step(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     current_state = await state.get_state()
     
-    # Логіка пропуску мін/макс значень
     if current_state == BuyCarFSM.enter_min_price:
         await callback.message.edit_text("💲 Введіть максимальну ціну ($):", reply_markup=get_input_control_keyboard(True))
         await state.set_state(BuyCarFSM.enter_max_price)
@@ -477,35 +458,48 @@ async def clear_filters(callback: CallbackQuery, state: FSMContext):
 
 
 # ==========================================
-# 4. ПОШУК ТА ПАГІНАЦІЯ (Show Results) - ГОЛОВНА ЧАСТИНА
+# 4. ПОШУК ТА ПАГІНАЦІЯ
 # ==========================================
 
 @buy_router.callback_query(F.data == "show_results")
 async def show_res(callback: CallbackQuery, state: FSMContext):
+    # 1. Одразу відповідаємо серверу, щоб кнопка не крутилася вічно
     await callback.answer()
     
     data = await state.get_data()
     query = build_mongo_query(data)
     
-    # 1. Рахуємо кількість результатів
+    # 2. Рахуємо кількість
     total_count = await count_car_ads(query)
     
+    # 3. ЯКЩО НІЧОГО НЕМАЄ (Ось тут твоя проблема)
     if total_count == 0:
-        await callback.answer("😔 Нічого не знайдено за цими фільтрами.", show_alert=True)
+        # 👇 ТУТ БУЛА ПОМИЛКА: треба дописати "msg =" на початку
+        msg = await callback.message.answer(
+            "😔 **На жаль, нічого не знайдено.**\n"
+            "Спробуйте змінити параметри пошуку (наприклад, прибрати марку або розширити діапазон цін)."
+        )
+        
+        # 2. Чекаємо 8 секунд
+        await asyncio.sleep(6)
+        
+        # 3. Видаляємо це повідомлення
+        try:
+            await msg.delete()
+        except:
+            pass 
+            
         return
-
-    # 2. Знаходимо першу машину (сторінка 0)
+    # 4. Якщо машини є - показуємо першу
     cars = await find_car_ads(query, limit=1, skip=0)
     car = cars[0]
 
-    # 3. Зберігаємо стан
     await state.update_data(current_page=0, total_results=total_count)
     
-    # 4. Видаляємо меню
+    # Видаляємо меню фільтрів
     try: await callback.message.delete()
     except: pass
 
-    # 5. Відправляємо картку
     kb = get_pagination_keyboard(0, total_count, car.get('seller_id'))
     await callback.message.answer_photo(
         photo=car['photo'],
@@ -519,20 +513,16 @@ async def paginate_cars(callback: CallbackQuery, state: FSMContext):
     current_page = data.get("current_page", 0)
     total_results = data.get("total_results", 0)
     
-    # Визначаємо нову сторінку
     if callback.data == "next_car":
         new_page = current_page + 1
     else:
         new_page = current_page - 1
 
-    # Перевірка меж
     if new_page < 0 or new_page >= total_results:
         await callback.answer("Це крайня сторінка")
         return
 
-    await callback.answer() # Скидаємо годинничок завантаження
-
-    # Робимо запит до бази
+    await callback.answer()
     query = build_mongo_query(data)
     cars = await find_car_ads(query, limit=1, skip=new_page)
     
@@ -543,19 +533,16 @@ async def paginate_cars(callback: CallbackQuery, state: FSMContext):
     await state.update_data(current_page=new_page)
     car = cars[0]
     
-    # Оновлюємо медіа (фото + текст)
-    media = InputMediaPhoto(
-        media=car['photo'],
-        caption=format_car_caption(car)
-    )
+    media = InputMediaPhoto(media=car['photo'], caption=format_car_caption(car))
     keyboard = get_pagination_keyboard(new_page, total_results, car.get('seller_id'))
     
     try:
         await callback.message.edit_media(media=media, reply_markup=keyboard)
     except Exception:
-        # Якщо фото те саме (наприклад, у всіх машин одне фото-заглушка), оновлюємо тільки текст
         await callback.message.edit_caption(caption=format_car_caption(car), reply_markup=keyboard)
 
+
+# 🔥 ОНОВЛЕНА ФУНКЦІЯ ПОКАЗУ КОНТАКТІВ
 @buy_router.callback_query(F.data.startswith("get_contact_"))
 async def get_seller_contact(callback: CallbackQuery):
     seller_id = int(callback.data.split("_")[-1])
@@ -563,11 +550,25 @@ async def get_seller_contact(callback: CallbackQuery):
     # Робимо запит до бази користувачів
     seller = await get_user(seller_id)
     
-    if seller and seller.get("phone_number"):
-        phone = seller["phone_number"]
-        await callback.answer(f"📞 Телефон продавця: {phone}", show_alert=True)
-    else:
-        await callback.answer("📭 У продавця прихований номер або він не знайдений.", show_alert=True)
+    if not seller:
+        await callback.answer("❌ Продавець не знайдений.", show_alert=True)
+        return
+
+    # Формуємо красивий текст
+    name = seller.get("full_name", "Невідомо")
+    username = seller.get("username")
+    phone = seller.get("phone_number", "Не вказано")
+
+    # Якщо є юзернейм, показуємо його, якщо ні - пишемо "Немає"
+    username_text = f"{username}" if username else "Немає"
+
+    text_response = (
+        f"👤 **Продавець:** {name}\n"
+        f"🔗 **Telegram:** {username_text}\n"
+        f"📞 **Телефон:** {phone}"
+    )
+    
+    await callback.answer(text_response, show_alert=True)
 
         
 @buy_router.callback_query(F.data == "back_to_filters")
@@ -576,14 +577,9 @@ async def back_to_filters_handler(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     
     data = await state.get_data()
-    # Відновлюємо меню фільтрів
     msg = await callback.message.answer(MENU_TEXT, reply_markup=get_filter_keyboard(data))
     await state.update_data(menu_message_id=msg.message_id)
 
-
-# ==========================================
-# 5. ПОВЕРНЕННЯ В ГОЛОВНЕ МЕНЮ
-# ==========================================
 
 @buy_router.callback_query(F.data == "main_menu")
 async def back_main(callback: CallbackQuery, state: FSMContext):
