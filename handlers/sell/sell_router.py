@@ -53,7 +53,7 @@ async def handle_sell_command(message: Message, state: FSMContext):
             [InlineKeyboardButton(text="🔙 Головне меню", callback_data="main_menu")]
         ]
     )
-    await message.answer(message_text, reply_markup=keyboard)
+    await message.answer(message_text, reply_markup=keyboard, parse_mode=None)
 
 
 # ==========================================
