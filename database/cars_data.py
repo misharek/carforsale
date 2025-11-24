@@ -67,6 +67,7 @@ MODEL_DATABASE = {
     "VOLKSWAGEN": ["Golf", "Golf Plus", "Passat", "Passat CC", "Jetta", "Tiguan", "Touareg", "Polo", "Arteon", "T-Roc", "T-Cross", "Taigo", "ID.3", "ID.4", "ID.5", "ID.6", "ID.Buzz", "Scirocco", "Beetle", "New Beetle", "Touran", "Sharan", "Caddy", "Transporter", "Multivan", "Caravelle", "Crafter", "Amarok", "Bora", "Vento", "Lupo", "Fox", "Up", "Phaeton", "Eos", "Corrado", "Atlas", "Teramont"],
     "VOLVO": ["S40", "S60", "S80", "S90", "V40", "V50", "V60", "V70", "V90", "XC40", "XC60", "XC70", "XC90", "C30", "C70", "C40", "EX30", "EX90", "850", "740", "940", "960", "240"],
     "ZAZ": ["Lanos", "Sens", "Forza", "Vida", "Tavria", "Slavuta", "Dana"],
+    "LADA": ["Vesta", "Granta", "XRAY", "Largus", "Priora", "Kalina", "Niva", "4x4", "Samara", "2101", "2106", "2107", "2108", "2109", "21099", "2110", "2112", "2114", "2115"],
     "OTHER": ["Інша модель", "Ретро автомобіль", "Саморобний", "Спорткар"]
 }
 
@@ -89,7 +90,8 @@ BRAND_MAPPING = {
     "ZAZ": "ZAZ",
     "TESLA": "TESLA",
     "PORSCHE": "PORSCHE",
-    "VAZ": "LADA", # Якщо раптом хтось введе
+    "VAZ": "LADA",
+    "LADA": "LADA",
 }
 # Автоматичне заповнення мапінгу
 for brand_name in MODEL_DATABASE.keys():
