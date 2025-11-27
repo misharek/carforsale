@@ -193,22 +193,27 @@ async def handle_model(message: types.Message, state: FSMContext):
         except: pass
 
     brand = data.get('brand') 
-    clean_model = message.text.strip().title()
+    
+    # 🔥 ВИПРАВЛЕННЯ: Приводимо введення користувача до ВЕРХНЬОГО РЕГІСТРУ
+    clean_model = message.text.strip().upper() 
+    
     allowed_models = MODEL_DATABASE.get(brand, []) 
 
     if clean_model not in allowed_models:
         suggestions = ", ".join(allowed_models[:5]) 
         msg = await message.answer(
-            f"❌ Модель '{clean_model}' не відповідає марці {brand}.\n"
-            f"Введіть коректну назву ({suggestions}...):",
+            f"❌ Модель '{message.text.strip()}' не відповідає марці {brand}.\n"
+            f"Введіть коректну назву (напр., {suggestions}...):",
             reply_markup=back_kb
         )
         await state.update_data(last_bot_msg_id=msg.message_id)
         return
 
-    await state.update_data(model=clean_model)
+    # Зберігаємо модель у верхньому регістрі
+    await state.update_data(model=clean_model) 
     await state.set_state(SellCarFSM.enter_year)
     
+    # ... (решта коду для переходу до enter_year)
     msg = await message.answer(
         f"✅ Модель: {clean_model}\n\n"
         "**Крок 3/9: Введіть рік випуску** (напр., 2019):",
