@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 # Імпорт даних та функцій бази
+# (Ці файли мають бути доступні у вашій структурі проєкту)
 from database.cars_data import MODEL_DATABASE, BRAND_MAPPING, ALLOWED_COLORS, FUEL_TYPES
 from database.user_manager import get_user, add_user 
 from database.car_manager import find_car_ads, count_car_ads 
@@ -72,13 +73,11 @@ def format_car_caption(car: dict) -> str:
         f"{desc_text}"
     )
 
-# 🔥 ОНОВЛЕНА ФУНКЦІЯ КЛАВІАТУРИ (Змінено текст кнопки)
 def get_pagination_keyboard(page_index: int, total: int, seller_id: int) -> InlineKeyboardMarkup:
     """Створює кнопки під карткою авто (Вперед/Назад)"""
     builder = InlineKeyboardBuilder()
     current_display = f"{page_index + 1} / {total}"
     
-    # Змінив текст тут 👇
     builder.button(text="📞 Зв'язок з продавцем", callback_data=f"get_contact_{seller_id}")
     builder.button(text="⬅️", callback_data="prev_car")
     builder.button(text=current_display, callback_data="noop")
@@ -89,6 +88,7 @@ def get_pagination_keyboard(page_index: int, total: int, seller_id: int) -> Inli
     return builder.as_markup()
 
 async def show_temp_error(message: types.Message, text: str):
+    """Показує повідомлення про помилку, яке зникає через 4 секунди."""
     try: await message.delete()
     except: pass
     error_msg = await message.answer(text)
@@ -97,6 +97,7 @@ async def show_temp_error(message: types.Message, text: str):
     except: pass
 
 async def refresh_menu(message: types.Message, state: FSMContext):
+    """Оновлює меню фільтрів після завершення кроку FSM."""
     data = await state.get_data()
     menu_id = data.get("menu_message_id")
     prompt_id = data.get("reply_prompt_id")
@@ -123,6 +124,7 @@ async def refresh_menu(message: types.Message, state: FSMContext):
     await state.set_state(None)
 
 async def show_filter_menu(message: types.Message, state: FSMContext):
+    """Показує початкове меню фільтрів."""
     temp = await message.answer("...", reply_markup=ReplyKeyboardRemove())
     await temp.delete()
     msg = await message.answer(MENU_TEXT, reply_markup=get_filter_keyboard({}))
@@ -192,12 +194,12 @@ async def register_buyer_handler(callback: CallbackQuery, state: FSMContext):
 # 2. ЛОГІКА ФІЛЬТРІВ (Ціна, Рік, Пробіг...)
 # ==========================================
 
-# --- ЦІНА ---
+# --- ЦІНА (ОНОВЛЕНО) ---
 @buy_router.callback_query(F.data == "filter_price")
 async def start_price(callback: CallbackQuery, state: FSMContext):
     await callback.answer() 
     await callback.message.edit_text(
-        "💲 Введіть мінімальну ціну ($):", reply_markup=get_input_control_keyboard(show_skip=True)
+        "💲 Введіть мінімальну ціну ($), мінімум $1000:", reply_markup=get_input_control_keyboard(show_skip=True)
     )
     await state.set_state(BuyCarFSM.enter_min_price)
 
@@ -206,7 +208,13 @@ async def set_min_price(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await show_temp_error(message, "⚠️ Введіть ціну тільки цифрами.")
         return 
-    await state.update_data(min_price=int(message.text))
+    
+    price = int(message.text)
+    if price < 1000:
+        await show_temp_error(message, "⚠️ Мінімальна ціна має бути не менше $1000.")
+        return 
+
+    await state.update_data(min_price=price)
     try: await message.delete()
     except: pass
 
@@ -215,7 +223,7 @@ async def set_min_price(message: types.Message, state: FSMContext):
     
     await message.bot.edit_message_text(
         chat_id=message.chat.id, message_id=menu_id,
-        text=f"✅ Від: ${message.text}\n\n💲 Тепер введіть максимальну ціну ($):",
+        text=f"✅ Від: ${price:,}\n\n💲 Тепер введіть максимальну ціну ($):",
         reply_markup=get_input_control_keyboard(show_skip=True)
     )
     await state.set_state(BuyCarFSM.enter_max_price)
@@ -225,24 +233,43 @@ async def set_max_price(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await show_temp_error(message, "⚠️ Введіть ціну тільки цифрами.")
         return 
-    await state.update_data(max_price=int(message.text))
+    
+    max_price = int(message.text)
+    
+    data = await state.get_data()
+    min_price = data.get("min_price", 0) 
+    
+    if min_price > 0 and max_price < min_price:
+        await show_temp_error(message, f"⚠️ Максимальна ціна (${max_price:,}) не може бути меншою за мінімальну (${min_price:,}).")
+        return
+        
+    await state.update_data(max_price=max_price)
     await refresh_menu(message, state)
 
-# --- РІК ---
+# --- РІК (ОНОВЛЕНО) ---
 @buy_router.callback_query(F.data == "filter_year")
 async def start_year(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    current_year = datetime.now().year
     await callback.message.edit_text(
-        "📅 Введіть мінімальний рік (наприклад 2010):", reply_markup=get_input_control_keyboard(show_skip=True)
+        f"📅 Введіть мінімальний рік (1900 - {current_year + 1}):", reply_markup=get_input_control_keyboard(show_skip=True)
     )
     await state.set_state(BuyCarFSM.enter_min_year)
 
 @buy_router.message(BuyCarFSM.enter_min_year)
 async def set_min_year(message: types.Message, state: FSMContext):
+    current_year = datetime.now().year
+    
     if not message.text.isdigit() or len(message.text) != 4:
         await show_temp_error(message, "⚠️ Рік має складатися з 4 цифр.")
         return
-    await state.update_data(min_year=int(message.text))
+    
+    year = int(message.text)
+    if not (1900 <= year <= current_year + 1): 
+        await show_temp_error(message, f"⚠️ Рік має бути в діапазоні 1900 - {current_year + 1}.")
+        return
+        
+    await state.update_data(min_year=year)
     try: await message.delete()
     except: pass
     
@@ -251,25 +278,41 @@ async def set_min_year(message: types.Message, state: FSMContext):
 
     await message.bot.edit_message_text(
         chat_id=message.chat.id, message_id=menu_id,
-        text=f"✅ Від: {message.text}\n\n📅 Тепер введіть максимальний рік:",
+        text=f"✅ Від: {year}\n\n📅 Тепер введіть максимальний рік:",
         reply_markup=get_input_control_keyboard(show_skip=True)
     )
     await state.set_state(BuyCarFSM.enter_max_year)
 
 @buy_router.message(BuyCarFSM.enter_max_year)
 async def set_max_year(message: types.Message, state: FSMContext):
+    current_year = datetime.now().year
+    
     if not message.text.isdigit() or len(message.text) != 4:
         await show_temp_error(message, "⚠️ Рік має складатися з 4 цифр.")
         return
-    await state.update_data(max_year=int(message.text))
+        
+    max_year = int(message.text)
+    
+    if not (1900 <= max_year <= current_year + 1): 
+        await show_temp_error(message, f"⚠️ Рік має бути в діапазоні 1900 - {current_year + 1}.")
+        return
+
+    data = await state.get_data()
+    min_year = data.get("min_year", 0) 
+    
+    if min_year > 0 and max_year < min_year:
+        await show_temp_error(message, f"⚠️ Максимальний рік ({max_year}) не може бути меншим за мінімальний ({min_year}).")
+        return
+
+    await state.update_data(max_year=max_year)
     await refresh_menu(message, state)
 
-# --- ПРОБІГ ---
+# --- ПРОБІГ (ОНОВЛЕНО) ---
 @buy_router.callback_query(F.data == "filter_mileage")
 async def start_mileage(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text(
-        "🛣️ Введіть мінімальний пробіг (тис. км):", reply_markup=get_input_control_keyboard(show_skip=True)
+        "🛣️ Введіть мінімальний пробіг (тис. км), мінімум 0 тис. км:", reply_markup=get_input_control_keyboard(show_skip=True)
     )
     await state.set_state(BuyCarFSM.enter_min_mileage)
 
@@ -278,7 +321,13 @@ async def set_min_mileage(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await show_temp_error(message, "⚠️ Введіть пробіг цифрами.")
         return
-    await state.update_data(min_mileage=int(message.text))
+        
+    mileage = int(message.text)
+    if mileage < 0:
+        await show_temp_error(message, "⚠️ Пробіг не може бути від'ємним.")
+        return
+        
+    await state.update_data(min_mileage=mileage)
     try: await message.delete()
     except: pass
 
@@ -286,7 +335,7 @@ async def set_min_mileage(message: types.Message, state: FSMContext):
     menu_id = data.get("menu_message_id")
     await message.bot.edit_message_text(
         chat_id=message.chat.id, message_id=menu_id,
-        text=f"✅ Від: {message.text} тис.км\n\n🛣️ Тепер введіть максимальний пробіг:",
+        text=f"✅ Від: {mileage} тис.км\n\n🛣️ Тепер введіть максимальний пробіг:",
         reply_markup=get_input_control_keyboard(show_skip=True)
     )
     await state.set_state(BuyCarFSM.enter_max_mileage)
@@ -296,7 +345,17 @@ async def set_max_mileage(message: types.Message, state: FSMContext):
     if not message.text.isdigit():
         await show_temp_error(message, "⚠️ Введіть пробіг цифрами.")
         return
-    await state.update_data(max_mileage=int(message.text))
+        
+    max_mileage = int(message.text)
+    
+    data = await state.get_data()
+    min_mileage = data.get("min_mileage", 0) 
+    
+    if min_mileage >= 0 and max_mileage < min_mileage:
+        await show_temp_error(message, f"⚠️ Максимальний пробіг ({max_mileage}) не може бути меншим за мінімальний ({min_mileage}).")
+        return
+        
+    await state.update_data(max_mileage=max_mileage)
     await refresh_menu(message, state)
 
 # --- МАРКА І МОДЕЛЬ ---
@@ -426,16 +485,20 @@ async def skip_current_step(callback: CallbackQuery, state: FSMContext):
     current_state = await state.get_state()
     
     if current_state == BuyCarFSM.enter_min_price:
+        # Пропустити мінімальну ціну: переходимо до максимальної
         await callback.message.edit_text("💲 Введіть максимальну ціну ($):", reply_markup=get_input_control_keyboard(True))
         await state.set_state(BuyCarFSM.enter_max_price)
     elif current_state == BuyCarFSM.enter_max_price:
+        # Пропустити максимальну ціну: повертаємось до меню
         await refresh_menu(callback.message, state)
     elif current_state == BuyCarFSM.enter_min_year:
+        # Пропустити мінімальний рік: переходимо до максимального
         await callback.message.edit_text("📅 Введіть максимальний рік:", reply_markup=get_input_control_keyboard(True))
         await state.set_state(BuyCarFSM.enter_max_year)
     elif current_state == BuyCarFSM.enter_max_year:
         await refresh_menu(callback.message, state)
     elif current_state == BuyCarFSM.enter_min_mileage:
+        # Пропустити мінімальний пробіг: переходимо до максимального
         await callback.message.edit_text("🛣️ Введіть максимальний пробіг:", reply_markup=get_input_control_keyboard(True))
         await state.set_state(BuyCarFSM.enter_max_mileage)
     elif current_state == BuyCarFSM.enter_max_mileage:
@@ -463,7 +526,7 @@ async def clear_filters(callback: CallbackQuery, state: FSMContext):
 
 @buy_router.callback_query(F.data == "show_results")
 async def show_res(callback: CallbackQuery, state: FSMContext):
-    # 1. Одразу відповідаємо серверу, щоб кнопка не крутилася вічно
+    # 1. Одразу відповідаємо серверу
     await callback.answer()
     
     data = await state.get_data()
@@ -472,23 +535,20 @@ async def show_res(callback: CallbackQuery, state: FSMContext):
     # 2. Рахуємо кількість
     total_count = await count_car_ads(query)
     
-    # 3. ЯКЩО НІЧОГО НЕМАЄ (Ось тут твоя проблема)
+    # 3. Якщо нічого не знайдено
     if total_count == 0:
         msg = await callback.message.answer(
             "😔 На жаль, нічого не знайдено.\n"
             "Спробуйте змінити параметри пошуку (наприклад, прибрати марку або розширити діапазон цін)."
         )
         
-        # 2. Чекаємо 8 секунд
         await asyncio.sleep(8)
         
-        # 3. Видаляємо це повідомлення
-        try:
-            await msg.delete()
-        except:
-            pass 
+        try: await msg.delete()
+        except: pass 
             
         return
+        
     # 4. Якщо машини є - показуємо першу
     cars = await find_car_ads(query, limit=1, skip=0)
     car = cars[0]
@@ -538,27 +598,25 @@ async def paginate_cars(callback: CallbackQuery, state: FSMContext):
     try:
         await callback.message.edit_media(media=media, reply_markup=keyboard)
     except Exception:
+        # Якщо не вдалося змінити медіа, пробуємо змінити лише підпис/клавіатуру
         await callback.message.edit_caption(caption=format_car_caption(car), reply_markup=keyboard)
 
 
-# 🔥 ОНОВЛЕНА ФУНКЦІЯ ПОКАЗУ КОНТАКТІВ
+# ОНОВЛЕНА ФУНКЦІЯ ПОКАЗУ КОНТАКТІВ
 @buy_router.callback_query(F.data.startswith("get_contact_"))
 async def get_seller_contact(callback: CallbackQuery):
     seller_id = int(callback.data.split("_")[-1])
     
-    # Робимо запит до бази користувачів
     seller = await get_user(seller_id)
     
     if not seller:
         await callback.answer("❌ Продавець не знайдений.", show_alert=True)
         return
 
-    # Формуємо красивий текст
     name = seller.get("full_name", "Невідомо")
     username = seller.get("username")
     phone = seller.get("phone_number", "Не вказано")
 
-    # Якщо є юзернейм, показуємо його, якщо ні - пишемо "Немає"
     username_text = f"{username}" if username else "Немає"
 
     text_response = (
