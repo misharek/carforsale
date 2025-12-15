@@ -13,7 +13,7 @@ common_router = Router()
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="/sell"), KeyboardButton(text="/buy")],
-        [KeyboardButton(text="/myads"), KeyboardButton(text="/help")],
+        [KeyboardButton(text="/my_ads"), KeyboardButton(text="/help")],
     ],
     resize_keyboard=True,
     one_time_keyboard=False 
